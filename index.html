@@ -507,6 +507,8 @@ function restartGame(){
   player=createPlayerSnake();createAIGroup();
   score=0;alive=true;player.alive=true;boostEnergy=MAX_BOOST;killStreak=0;
   message.style.display='none';updateHUD();
+  // Réseau
+  if(typeof netRespawn==='function')netRespawn();
 }
 
 function removeSnake(s){
@@ -709,6 +711,8 @@ function checkAIDeath(ai){
 
 function killPlayer(killer){
   alive=false;player.alive=false;dropSnakeFood(player);
+  // Réseau
+  if(typeof netDie==='function')netDie(killer?killer.name:'');
   deathRipple.style.display='block';setTimeout(()=>{deathRipple.style.display='none'},900);
   const mi=$('messageInner');
   let html=`Tu es mort !<div id="deathScore">Score : ${score} &nbsp;|&nbsp; Taille : ${player?player.desiredLength:0}</div>`;
@@ -799,13 +803,17 @@ function updateNamesAndCrown(){
 }
 
 function updateLeaderboard(){
-  const r=ranking().slice(0,8);
+  const base=ranking();
+  // Ajoute les joueurs distants
+  if(typeof remotePlayers!=='undefined'){
+    for(const [,rp] of remotePlayers)if(rp.snake&&rp.snake.alive)base.push(rp.snake);
+  }
+  const r=base.sort((a,b)=>b.desiredLength-a.desiredLength).slice(0,8);
   rankingList.innerHTML=r.map((s,i)=>{
     const cls=i===0?'rankTop':s.isPlayer?'rankMe':'';
-    const icon=i===0?'👑 ':(s.isBoss?'⚡ ':'');
+    const icon=i===0?'👑 ':(s.isBoss?'⚡ ':(s.isRemote?'🌐 ':''));
     const flag=getFlagImg(s.country);
-    const flagStr=flag;
-    return `<div class="rankLine ${cls}"><span>${i+1}. ${icon}${flagStr}${s.name}</span><span>${s.desiredLength}</span></div>`;
+    return `<div class="rankLine ${cls}"><span>${i+1}. ${icon}${flag}${s.name}</span><span>${s.desiredLength}</span></div>`;
   }).join('');
 }
 
@@ -854,6 +862,9 @@ function updateHUD(){
   updateNamesAndCrown();
   if(frame%6===0)updateLeaderboard();
   if(frame%4===0)drawMiniMap();
+  // Réseau
+  if(typeof sendPosition==='function')sendPosition();
+  if(typeof updateRemotePlayers==='function')updateRemotePlayers();
 }
 
 function animate(){
@@ -1080,44 +1091,6 @@ const _rankFn = () => {
   for (const ai of ais) if (ai && ai.alive) base.push(ai);
   for (const [, rp] of remotePlayers) if (rp.snake && rp.snake.alive) base.push(rp.snake);
   return base.sort((a, b) => b.desiredLength - a.desiredLength);
-};
-
-// Patch animate pour envoyer la position + updater les joueurs distants
-const _origAnimate = animate;
-// On surcharge updateHUD pour injecter nos mises à jour réseau
-const _origUpdateHUD = updateHUD;
-function updateHUD() {
-  scoreEl.textContent = score;
-  lengthEl.textContent = player ? player.desiredLength : 0;
-  if (frame % 3 === 0) adjustArenaDifficulty();
-  updateNamesAndCrown();
-  if (frame % 6 === 0) {
-    // Classement avec joueurs distants
-    const r = _rankFn().slice(0, 8);
-    rankingList.innerHTML = r.map((s, i) => {
-      const cls = i === 0 ? 'rankTop' : s.isPlayer ? 'rankMe' : '';
-      const icon = i === 0 ? '👑 ' : (s.isBoss ? '⚡ ' : s.isRemote ? '🌐 ' : '');
-      const flag = getFlagImg(s.country);
-      return `<div class="rankLine ${cls}"><span>${i+1}. ${icon}${flag}${s.name}</span><span>${s.desiredLength}</span></div>`;
-    }).join('');
-  }
-  if (frame % 4 === 0) drawMiniMap();
-  sendPosition();
-  updateRemotePlayers();
-}
-
-// Patch killPlayer pour notifier le réseau
-const _origKillPlayer = killPlayer;
-window.killPlayer = function(killer) {
-  netDie(killer ? killer.name : '');
-  _origKillPlayer(killer);
-};
-
-// Patch restartGame pour notifier le réseau
-const _origRestartGame = restartGame;
-window.restartGame = function() {
-  _origRestartGame();
-  netRespawn();
 };
 
 // Démarre la tentative de connexion au lancement
