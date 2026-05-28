@@ -886,9 +886,10 @@ function rand(min,max){return Math.random()*(max-min)+min}
 //  MULTIJOUEUR — connexion WebSocket + fallback IA silencieux
 // ============================================================
 
-// ⚙️  Mets l'URL de ton serveur ici (ngrok ou IP locale pour test)
+// ⚙️  Mets l'URL de ton tunnel ici après avoir lancé localhost.run
+//     Format : wss://XXXXXXXX.lhr.life
 //     Si le serveur est éteint, le jeu continue normalement avec les IA
-const WS_URL = 'ws://TON_URL_NGROK_ICI:8080';
+const WS_URL = 'wss://TON_URL_LOCALHOST_RUN';
 
 // Map des vrais joueurs distants : id → { snake3D, lastX, lastZ, lastDirX, lastDirZ }
 const remotePlayers = new Map();
@@ -1107,17 +1108,17 @@ function updateHUD() {
 
 // Patch killPlayer pour notifier le réseau
 const _origKillPlayer = killPlayer;
-function killPlayer(killer) {
+window.killPlayer = function(killer) {
   netDie(killer ? killer.name : '');
   _origKillPlayer(killer);
-}
+};
 
 // Patch restartGame pour notifier le réseau
 const _origRestartGame = restartGame;
-function restartGame() {
+window.restartGame = function() {
   _origRestartGame();
   netRespawn();
-}
+};
 
 // Démarre la tentative de connexion au lancement
 // (silencieuse, aucun impact si le serveur est off)
