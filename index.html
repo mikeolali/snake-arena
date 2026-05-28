@@ -157,8 +157,25 @@ button:hover{transform:translateY(-2px) scale(1.04);box-shadow:0 0 52px rgba(94,
   }
 }
 </script>
+<script>
+window.__snakeModuleLoaded = false;
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    if (!window.__snakeModuleLoaded) {
+      const btn = document.getElementById('playButton');
+      if (btn) {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          alert("Le moteur 3D n'a pas chargé. Vérifie ta connexion Internet ou lance le jeu depuis GitHub Pages/Live Server, car Three.js est chargé depuis un CDN.");
+        });
+      }
+    }
+  }, 1200);
+});
+</script>
 <script type="module">
 import * as THREE from 'three';
+window.__snakeModuleLoaded = true;
 // === CONFIG ===
 const ARENA_RADIUS=420,FOOD_COUNT=920,START_LENGTH=8,SEGMENT_DISTANCE=1.52,BASE_SPEED=1.05,BOOST_SPEED=1.65;
 const BASE_AI_COUNT=16,MAX_AI_COUNT=26,BOSS_COUNT=2,DROP_VALUE_MULTIPLIER=3,AI_POINT_MULTIPLIER=1.45,BOSS_POINT_MULTIPLIER=2.1,MAX_DROPPED_FOOD=1400;
@@ -324,8 +341,33 @@ function showStreak(n){
   streakBadge._hideTimer=setTimeout(()=>{streakBadge.style.display='none'},2400);
 }
 
+
+// Variables multijoueur déclarées avant init(), sinon updateHUD()/updateLeaderboard()
+// peuvent les lire avant leur création et bloquer le bouton JouER.
+const WS_URL = ''; // à remplacer par ton wss://... quand ton serveur est prêt
+const remotePlayers = new Map();
+let ws = null;
+let myNetId = null;
+let multiOnline = false;
+
 // ── Init ─────────────────────────────────────────────────────
-init();animate();
+let initError = null;
+playButton.addEventListener('click', e => {
+  e.preventDefault();
+  if (initError) {
+    console.error(initError);
+    alert('Erreur de lancement : ' + (initError.message || initError));
+    return;
+  }
+  startGame();
+});
+try {
+  init();
+  animate();
+} catch (err) {
+  initError = err;
+  console.error('Erreur init Snake Arena:', err);
+}
 
 function init(){
   _groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
@@ -344,7 +386,6 @@ function init(){
   player=createPlayerSnake();
   createAIGroup();
   updateHUD();
-  playButton.onclick=e=>{e.preventDefault();startGame()};
   snakeColorInput.oninput=updateSkinPreview;
   accessorySelect.onchange=updateSkinPreview;
   updateSkinPreview();
@@ -897,17 +938,6 @@ function rand(min,max){return Math.random()*(max-min)+min}
 //  MULTIJOUEUR — connexion WebSocket + fallback IA silencieux
 // ============================================================
 
-// ⚙️  Mets l'URL de ton tunnel ici après avoir lancé localhost.run
-//     Format : wss://XXXXXXXX.lhr.life
-//     Si le serveur est éteint, le jeu continue normalement avec les IA
-const WS_URL = 'wss://TON_URL_LOCALHOST_RUN';
-
-// Map des vrais joueurs distants : id → { snake3D, lastX, lastZ, lastDirX, lastDirZ }
-const remotePlayers = new Map();
-let ws = null;
-let myNetId = null;
-let multiOnline = false;
-
 // Indicateur visuel de connexion (petit point en haut à gauche du HUD)
 const _statusDot = document.createElement('span');
 _statusDot.style.cssText = 'display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:6px;vertical-align:middle;background:#555;transition:background .4s';
@@ -1097,5 +1127,6 @@ const _rankFn = () => {
 // (silencieuse, aucun impact si le serveur est off)
 window.addEventListener('load', () => setTimeout(connectMultiplayer, 800));
 
+</script>
 </body>
 </html>
